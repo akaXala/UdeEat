@@ -1,13 +1,20 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@clerk/expo';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
+  const { signOut } = useAuth();
+
+  const onSignOutPress = async () => {
+    await signOut();
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -21,6 +28,9 @@ export default function HomeScreen() {
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
       </ThemedView>
+      <Pressable style={styles.signOutButton} onPress={onSignOutPress}>
+        <ThemedText style={styles.signOutButtonText}>Cerrar sesión</ThemedText>
+      </Pressable>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
         <ThemedText>
@@ -87,6 +97,18 @@ const styles = StyleSheet.create({
   stepContainer: {
     gap: 8,
     marginBottom: 8,
+  },
+  signOutButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#d9534f',
+    borderRadius: 8,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  signOutButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
   reactLogo: {
     height: 178,

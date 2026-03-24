@@ -6,7 +6,17 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+// Clerk
+import { useAuth } from '@clerk/expo';
+import { Redirect } from 'expo-router';
+
 export default function TabLayout() {
+  const { isSignedIn } = useAuth();
+
+  if (!isSignedIn) {
+    return <Redirect href={'/(auth)/sign-in'} />;
+  }
+  
   const colorScheme = useColorScheme();
 
   return (
