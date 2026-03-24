@@ -1,84 +1,118 @@
 import { ThemedText } from '@/components/themed-text'
 import { ThemedView } from '@/components/themed-view'
-import { useSignIn } from '@clerk/expo'
+import { useOAuth, useSignIn } from '@clerk/expo'
+import * as Linking from 'expo-linking'
 import { Link, useRouter } from 'expo-router'
-import React from 'react'
-import { Pressable, StyleSheet, TextInput, View } from 'react-native'
+import * as WebBrowser from 'expo-web-browser'
+import React, { useState } from 'react'
+import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+
+WebBrowser.maybeCompleteAuthSession()
 
 export default function SignInPage() {
-  const { signIn, fetchStatus } = useSignIn()
+  const { signIn } = useSignIn()
   const router = useRouter()
 
-  const [emailAddress, setEmailAddress] = React.useState('')
-  const [password, setPassword] = React.useState('')
+  const [emailAddress, setEmailAddress] = useState('')
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const { startOAuthFlow: startGoogleFlow } = useOAuth({ strategy: 'oauth_google' })
+  const { startOAuthFlow: startAppleFlow } = useOAuth({ strategy: 'oauth_apple' })
+  const { startOAuthFlow: startMicrosoftFlow } = useOAuth({ strategy: 'oauth_microsoft' })
+
+  const handleOAuth = async (strategy: 'google' | 'apple' | 'microsoft') => {
+    setIsLoading(true)
+    try {
+      let flow;
+      if (strategy === 'google') flow = startGoogleFlow;
+      else if (strategy === 'apple') flow = startAppleFlow;
+      else flow = startMicrosoftFlow;
+
+      const { createdSessionId, setActive, signIn: oauthSignIn } = await flow({
+        redirectUrl: Linking.createURL('/', { scheme: 'udeeat' }),
+      })
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId })
+        router.replace('/')
+      } else {
+        Alert.alert('Aviso', `No se completó el inicio de sesión. (Status: ${oauthSignIn?.status})`)
+      }
+    } catch (err: any) {
+      console.error('OAuth error:', err)
+      Alert.alert('Error', `No se pudo iniciar sesión con ${strategy}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const onSignInPress = async () => {
-    const { error } = await signIn.password({
-      emailAddress,
-      password,
-    })
+    setIsLoading(true)
+    try {
+      const { error } = await signIn.password({ emailAddress, password })
+      if (error) { Alert.alert('Error', error.message); return }
 
-    if (error) {
-      console.error('Error al iniciar sesión:', JSON.stringify(error, null, 2))
-      return
-    }
-
-    if (signIn.status === 'complete') {
-      await signIn.finalize({
-        navigate: () => {
-          router.replace('/')
-        },
-      })
+      if (signIn.status === 'complete') {
+        await signIn.finalize({ navigate: () => router.replace('/') })
+      } else {
+        Alert.alert('Atención', 'Inicio de sesión incompleto.')
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.errors?.[0]?.longMessage || 'Credenciales incorrectas')
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>Iniciar Sesión</ThemedText>
+    <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <ThemedView style={styles.container}>
+        <ThemedText type="title" style={styles.title}>Iniciar Sesión</ThemedText>
 
-      <TextInput
-        style={styles.input}
-        autoCapitalize="none"
-        value={emailAddress}
-        placeholder="Correo electrónico"
-        placeholderTextColor="#666"
-        onChangeText={(emailAddress) => setEmailAddress(emailAddress)}
-      />
-      
-      <TextInput
-        style={styles.input}
-        value={password}
-        placeholder="Contraseña"
-        placeholderTextColor="#666"
-        secureTextEntry={true}
-        onChangeText={(password) => setPassword(password)}
-      />
+        <View style={styles.socialContainer}>
+          <Pressable style={[styles.socialButton, { backgroundColor: '#DB4437' }]} onPress={() => handleOAuth('google')} disabled={isLoading}>
+            <ThemedText style={styles.socialButtonText}>Google</ThemedText>
+          </Pressable>
+          <Pressable style={[styles.socialButton, { backgroundColor: '#000' }]} onPress={() => handleOAuth('apple')} disabled={isLoading}>
+            <ThemedText style={styles.socialButtonText}>Apple</ThemedText>
+          </Pressable>
+          <Pressable style={[styles.socialButton, { backgroundColor: '#0078D4' }]} onPress={() => handleOAuth('microsoft')} disabled={isLoading}>
+            <ThemedText style={styles.socialButtonText}>Microsoft</ThemedText>
+          </Pressable>
+        </View>
 
-      <Pressable 
-        style={styles.button} 
-        onPress={onSignInPress} 
-        disabled={fetchStatus === 'fetching'}
-      >
-        <ThemedText style={styles.buttonText}>
-          {fetchStatus === 'fetching' ? 'Cargando...' : 'Entrar'}
-        </ThemedText>
-      </Pressable>
+        <View style={styles.dividerContainer}>
+          <View style={styles.divider} /><ThemedText style={styles.dividerText}>o con tu correo</ThemedText><View style={styles.divider} />
+        </View>
 
-      <View style={styles.linkContainer}>
-        <ThemedText>¿No tienes cuenta? </ThemedText>
-        <Link href="/(auth)/sign-up">
-          <ThemedText type="link">Regístrate</ThemedText>
-        </Link>
-      </View>
-    </ThemedView>
+        <TextInput style={styles.input} autoCapitalize="none" value={emailAddress} placeholder="Correo electrónico" onChangeText={setEmailAddress} />
+        <TextInput style={styles.input} value={password} placeholder="Contraseña" secureTextEntry onChangeText={setPassword} />
+
+        <Pressable style={styles.button} onPress={onSignInPress} disabled={isLoading}>
+          <ThemedText style={styles.buttonText}>{isLoading ? 'Cargando...' : 'Entrar'}</ThemedText>
+        </Pressable>
+
+        <View style={styles.linkContainer}>
+          <ThemedText>¿No tienes cuenta? </ThemedText>
+          <Link href="/(auth)/sign-up"><ThemedText type="link">Regístrate</ThemedText></Link>
+        </View>
+      </ThemedView>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, justifyContent: 'center', gap: 12 },
-  title: { marginBottom: 20, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff' },
+  title: { marginBottom: 10, textAlign: 'center' },
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff', color: '#000' },
   button: { backgroundColor: '#0a7ea4', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
   buttonText: { color: '#fff', fontWeight: 'bold' },
   linkContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
+  socialContainer: { flexDirection: 'row', gap: 10, marginBottom: 10, justifyContent: 'space-between' },
+  socialButton: { paddingVertical: 12, borderRadius: 8, alignItems: 'center', flex: 1 },
+  socialButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 10 },
+  divider: { flex: 1, height: 1, backgroundColor: '#ccc' },
+  dividerText: { marginHorizontal: 10, color: '#666' }
 })
