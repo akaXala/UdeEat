@@ -1,8 +1,7 @@
 import { ThemedText } from '@/components/themed-text'
 import { ThemedView } from '@/components/themed-view'
-import { useOAuth, useSignUp } from '@clerk/expo'
-import * as Linking from 'expo-linking'
-import { Link, useRouter } from 'expo-router'
+import { useAuth, useOAuth, useSignUp } from '@clerk/expo'
+import { Link, Redirect, useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import React, { useState } from 'react'
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
@@ -10,6 +9,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 WebBrowser.maybeCompleteAuthSession()
 
 export default function SignUpPage() {
+  const { isSignedIn, isLoaded } = useAuth()
   const { signUp } = useSignUp()
   const router = useRouter()
 
@@ -27,7 +27,20 @@ export default function SignUpPage() {
   const { startOAuthFlow: startAppleFlow } = useOAuth({ strategy: 'oauth_apple' })
   const { startOAuthFlow: startMicrosoftFlow } = useOAuth({ strategy: 'oauth_microsoft' })
 
+  if (!isLoaded) {
+    return null
+  }
+
+  if (isSignedIn) {
+    return <Redirect href="/(tabs)" />
+  }
+
   const handleOAuth = async (strategy: 'google' | 'apple' | 'microsoft') => {
+    if (isSignedIn) {
+      router.replace('/(tabs)')
+      return
+    }
+
     setIsLoading(true)
     try {
       let flow;
@@ -35,20 +48,12 @@ export default function SignUpPage() {
       else if (strategy === 'apple') flow = startAppleFlow;
       else flow = startMicrosoftFlow;
       
-      const { createdSessionId, setActive, signUp: oauthSignUp } = await flow({
-        redirectUrl: Linking.createURL('/', { scheme: 'udeeat' }),
-      })
+      const { createdSessionId, setActive: oauthSetActive, signUp: oauthSignUp } = await flow()
 
-      // Si nos devuelve el session ID, todo salió perfecto
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId })
-        router.replace('/')
+      if (createdSessionId && oauthSetActive) {
+        await oauthSetActive({ session: createdSessionId })
+        router.replace('/(tabs)')
       } else {
-        // AQUÍ ESTABA EL PROBLEMA SILENCIOSO
-        // Si no hay createdSessionId, la red social no envió todos los datos obligatorios
-        console.log("Estado de registro OAuth:", oauthSignUp?.status);
-        console.log("Campos faltantes:", oauthSignUp?.missingFields);
-
         if (oauthSignUp?.status === 'missing_requirements') {
           const faltantes = oauthSignUp?.missingFields?.join(', ') || 'datos obligatorios'
           Alert.alert(
@@ -60,20 +65,45 @@ export default function SignUpPage() {
         }
       }
     } catch (err: any) {
-      console.error('OAuth error:', err)
+      const message = `${err?.errors?.[0]?.message || ''} ${err?.message || ''} ${String(err || '')}`.toLowerCase()
+      if (message.includes('already signed in') || message.includes("you're already signed in")) {
+        router.replace('/(tabs)')
+        return
+      }
       Alert.alert('Error', `No se pudo iniciar sesión con ${strategy}`)
     } finally {
       setIsLoading(false)
     }
   }
 
-  // ... (Mantenemos onSignUpPress y onPressVerify exactamente igual que antes)
   const onSignUpPress = async () => {
+    if (!isLoaded) {
+      return
+    }
+
     setIsLoading(true)
     try {
-      const { error } = await signUp.password({ firstName, lastName, emailAddress, password })
-      if (error) { Alert.alert('Error', error.message); return }
-      await signUp.verifications.sendEmailCode()
+      const createResult = await signUp.create({
+        firstName,
+        lastName,
+        emailAddress,
+      })
+      if (createResult.error) {
+        Alert.alert('Error', createResult.error.message)
+        return
+      }
+
+      const passwordResult = await signUp.password({ password })
+      if (passwordResult.error) {
+        Alert.alert('Error', passwordResult.error.message)
+        return
+      }
+
+      const sendCodeResult = await signUp.verifications.sendEmailCode()
+      if (sendCodeResult.error) {
+        Alert.alert('Error', sendCodeResult.error.message)
+        return
+      }
       setPendingVerification(true)
     } catch (err: any) {
       Alert.alert('Fallo en registro', err.errors?.[0]?.longMessage || err.message)
@@ -81,12 +111,26 @@ export default function SignUpPage() {
   }
 
   const onPressVerify = async () => {
+    if (!isLoaded) {
+      return
+    }
+
     setIsLoading(true)
     try {
-      const { error } = await signUp.verifications.verifyEmailCode({ code })
-      if (error) { Alert.alert('Error', error.message); return }
+      const verifyResult = await signUp.verifications.verifyEmailCode({ code })
+      if (verifyResult.error) {
+        Alert.alert('Error', verifyResult.error.message)
+        return
+      }
+
       if (signUp.status === 'complete') {
-        await signUp.finalize({ navigate: () => router.replace('/') })
+        const finalizeResult = await signUp.finalize({
+          navigate: () => router.replace('/(tabs)'),
+        })
+
+        if (finalizeResult.error) {
+          Alert.alert('Error', finalizeResult.error.message)
+        }
       } else {
         Alert.alert('Faltan datos', `Clerk requiere: ${signUp.missingFields?.join(', ')}`)
       }
@@ -96,7 +140,6 @@ export default function SignUpPage() {
   }
 
   if (pendingVerification) {
-    // ... (Mismo código de verificación)
     return (
       <ThemedView style={styles.container}>
         <ThemedText type="title" style={styles.title}>Verifica tu correo</ThemedText>

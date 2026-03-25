@@ -1,8 +1,7 @@
 import { ThemedText } from '@/components/themed-text'
 import { ThemedView } from '@/components/themed-view'
-import { useOAuth, useSignIn } from '@clerk/expo'
-import * as Linking from 'expo-linking'
-import { Link, useRouter } from 'expo-router'
+import { useAuth, useOAuth, useSignIn } from '@clerk/expo'
+import { Link, Redirect, useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import React, { useState } from 'react'
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
@@ -10,6 +9,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 WebBrowser.maybeCompleteAuthSession()
 
 export default function SignInPage() {
+  const { isSignedIn, isLoaded } = useAuth()
   const { signIn } = useSignIn()
   const router = useRouter()
 
@@ -21,7 +21,20 @@ export default function SignInPage() {
   const { startOAuthFlow: startAppleFlow } = useOAuth({ strategy: 'oauth_apple' })
   const { startOAuthFlow: startMicrosoftFlow } = useOAuth({ strategy: 'oauth_microsoft' })
 
+  if (!isLoaded) {
+    return null
+  }
+
+  if (isSignedIn) {
+    return <Redirect href="/(tabs)" />
+  }
+
   const handleOAuth = async (strategy: 'google' | 'apple' | 'microsoft') => {
+    if (isSignedIn) {
+      router.replace('/(tabs)')
+      return
+    }
+
     setIsLoading(true)
     try {
       let flow;
@@ -29,18 +42,20 @@ export default function SignInPage() {
       else if (strategy === 'apple') flow = startAppleFlow;
       else flow = startMicrosoftFlow;
 
-      const { createdSessionId, setActive, signIn: oauthSignIn } = await flow({
-        redirectUrl: Linking.createURL('/', { scheme: 'udeeat' }),
-      })
+      const { createdSessionId, setActive: oauthSetActive, signIn: oauthSignIn } = await flow()
 
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId })
-        router.replace('/')
+      if (createdSessionId && oauthSetActive) {
+        await oauthSetActive({ session: createdSessionId })
+        router.replace('/(tabs)')
       } else {
         Alert.alert('Aviso', `No se completó el inicio de sesión. (Status: ${oauthSignIn?.status})`)
       }
     } catch (err: any) {
-      console.error('OAuth error:', err)
+      const message = `${err?.errors?.[0]?.message || ''} ${err?.message || ''} ${String(err || '')}`.toLowerCase()
+      if (message.includes('already signed in') || message.includes("you're already signed in")) {
+        router.replace('/(tabs)')
+        return
+      }
       Alert.alert('Error', `No se pudo iniciar sesión con ${strategy}`)
     } finally {
       setIsLoading(false)
@@ -48,13 +63,34 @@ export default function SignInPage() {
   }
 
   const onSignInPress = async () => {
+    if (!isLoaded) {
+      return
+    }
+
     setIsLoading(true)
     try {
-      const { error } = await signIn.password({ emailAddress, password })
-      if (error) { Alert.alert('Error', error.message); return }
+      const createResult = await signIn.create({
+        identifier: emailAddress,
+      })
+      if (createResult.error) {
+        Alert.alert('Error', createResult.error.message)
+        return
+      }
+
+      const passwordResult = await signIn.password({ password })
+      if (passwordResult.error) {
+        Alert.alert('Error', passwordResult.error.message)
+        return
+      }
 
       if (signIn.status === 'complete') {
-        await signIn.finalize({ navigate: () => router.replace('/') })
+        const finalizeResult = await signIn.finalize({
+          navigate: () => router.replace('/(tabs)'),
+        })
+
+        if (finalizeResult.error) {
+          Alert.alert('Error', finalizeResult.error.message)
+        }
       } else {
         Alert.alert('Atención', 'Inicio de sesión incompleto.')
       }
