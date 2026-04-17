@@ -46,6 +46,8 @@ function RootNavigator() {
 
       <Stack.Protected guard={Boolean(isLoaded && isSignedIn)}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="restaurant/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="restaurant/[id]/food/[foodId]" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );

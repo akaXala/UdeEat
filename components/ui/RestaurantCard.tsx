@@ -9,6 +9,7 @@ type RestaurantCardProps = {
   rating?: number;
   tiempo?: string;
   imagen?: string;
+  onPress?: () => void;
 };
 
 const RestaurantCard = ({
@@ -17,11 +18,13 @@ const RestaurantCard = ({
   rating = 4.8,
   tiempo = '15-25 min',
   imagen = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop',
+  onPress,
 }: RestaurantCardProps) => {
     const theme = useTheme();
 
     return (
         <Pressable
+          onPress={onPress}
             style={[
                 styles.card,
                 {
