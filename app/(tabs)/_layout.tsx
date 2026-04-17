@@ -1,11 +1,16 @@
 // app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { useColorScheme } from 'react-native';
 
+import { Colors } from '@/constants/Colors';
 // Importamos tu componente personalizado
 import CustomTabBar from '@/components/ui/CustomTabBar';
 
 export default function TabLayout() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+
   return (
     <Tabs
       // --- LA CLAVE ---
@@ -15,6 +20,7 @@ export default function TabLayout() {
       // Configuraciones globales para todas las pantallas de Tabs
       screenOptions={{
         headerShown: false, // Ocultamos el header automático, ya usamos el tuyo componetizado
+        sceneStyle: { backgroundColor: colors.background },
       }}
     >
       {/* Las pantallas que viven en la barra de navegación */}

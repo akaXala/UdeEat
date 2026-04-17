@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useRef } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Easing } from 'react-native';
 
 type SlideDirection = 'from-left' | 'from-right' | 'none';
 
@@ -18,33 +18,28 @@ function consumePendingDirection(): SlideDirection {
 
 export function useTabSlideAnimation() {
   const translateX = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
 
   useFocusEffect(
     useCallback(() => {
       const direction = consumePendingDirection();
-      const startX = direction === 'from-right' ? 40 : direction === 'from-left' ? -40 : 0;
+      const startX = direction === 'from-right' ? 14 : direction === 'from-left' ? -14 : 0;
 
       translateX.setValue(startX);
-      opacity.setValue(startX === 0 ? 1 : 0.9);
 
-      Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: 0,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, [opacity, translateX]),
+      if (startX === 0) {
+        return;
+      }
+
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 440,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }).start();
+    }, [translateX]),
   );
 
   return {
-    opacity,
     transform: [{ translateX }],
   };
 }
