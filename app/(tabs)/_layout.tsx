@@ -1,14 +1,11 @@
 // app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { useColorScheme } from 'react-native';
 
 // Importamos tu componente personalizado
 import CustomTabBar from '@/components/ui/CustomTabBar';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme() ?? 'light';
-
   return (
     <Tabs
       // --- LA CLAVE ---

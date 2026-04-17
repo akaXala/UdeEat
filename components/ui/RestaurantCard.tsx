@@ -12,8 +12,8 @@ type RestaurantCardProps = {
 };
 
 const RestaurantCard = ({
-  nombre = 'La Parrilla de ESCOM',
-  categoria = 'Comida Mexicana',
+  nombre = 'La Parrilla de la UdeA',
+  categoria = 'Comida Internacional',
   rating = 4.8,
   tiempo = '15-25 min',
   imagen = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop',

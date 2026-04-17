@@ -1,6 +1,7 @@
 import { ThemedText } from '@/components/themed-text'
 import { ThemedView } from '@/components/themed-view'
 import { useAuth, useOAuth, useSignUp } from '@clerk/expo'
+import * as AuthSession from 'expo-auth-session'
 import { Link, Redirect, useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import React, { useState } from 'react'
@@ -8,9 +9,25 @@ import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 
 WebBrowser.maybeCompleteAuthSession()
 
+function getErrorMessage(error: any, fallback: string) {
+  if (error?.message && typeof error.message === 'string') {
+    return error.message
+  }
+
+  const clerkError = error?.errors?.[0]
+  if (clerkError?.longMessage && typeof clerkError.longMessage === 'string') {
+    return clerkError.longMessage
+  }
+  if (clerkError?.message && typeof clerkError.message === 'string') {
+    return clerkError.message
+  }
+
+  return fallback
+}
+
 export default function SignUpPage() {
-  const { isSignedIn, isLoaded } = useAuth()
-  const { signUp } = useSignUp()
+  const { isSignedIn, isLoaded } = useAuth({ treatPendingAsSignedOut: false })
+  const { signUp, fetchStatus } = useSignUp()
   const router = useRouter()
 
   const [firstName, setFirstName] = useState('')
@@ -22,55 +39,51 @@ export default function SignUpPage() {
   const [pendingVerification, setPendingVerification] = useState(false)
   const [isLoading, setIsLoading] = useState(false) 
 
-  // 1. Añadimos Microsoft
   const { startOAuthFlow: startGoogleFlow } = useOAuth({ strategy: 'oauth_google' })
   const { startOAuthFlow: startAppleFlow } = useOAuth({ strategy: 'oauth_apple' })
-  const { startOAuthFlow: startMicrosoftFlow } = useOAuth({ strategy: 'oauth_microsoft' })
+  const oauthRedirectUrl = AuthSession.makeRedirectUri({ path: 'oauth-native-callback' })
+
+  const isBusy = isLoading || fetchStatus === 'fetching'
 
   if (!isLoaded) {
-    return null
+    return (
+      <ThemedView style={[styles.container, styles.centeredContainer]}>
+        <ThemedText>Cargando sesión...</ThemedText>
+      </ThemedView>
+    )
   }
 
   if (isSignedIn) {
     return <Redirect href="/(tabs)" />
   }
 
-  const handleOAuth = async (strategy: 'google' | 'apple' | 'microsoft') => {
-    if (isSignedIn) {
-      router.replace('/(tabs)')
-      return
-    }
-
+  const handleOAuth = async (strategy: 'google' | 'apple') => {
     setIsLoading(true)
     try {
-      let flow;
+      let flow
       if (strategy === 'google') flow = startGoogleFlow;
-      else if (strategy === 'apple') flow = startAppleFlow;
-      else flow = startMicrosoftFlow;
+      else flow = startAppleFlow;
       
-      const { createdSessionId, setActive: oauthSetActive, signUp: oauthSignUp } = await flow()
+      const { createdSessionId, setActive: oauthSetActive, signUp: oauthSignUp, signIn: oauthSignIn } = await flow({
+        redirectUrl: oauthRedirectUrl,
+      })
 
       if (createdSessionId && oauthSetActive) {
         await oauthSetActive({ session: createdSessionId })
-        router.replace('/(tabs)')
-      } else {
-        if (oauthSignUp?.status === 'missing_requirements') {
-          const faltantes = oauthSignUp?.missingFields?.join(', ') || 'datos obligatorios'
-          Alert.alert(
-            'Faltan datos de la red social', 
-            `La cuenta no se creó porque ${strategy} no proporcionó: ${faltantes}. Por favor, haz que estos campos sean opcionales en Clerk o usa el registro por correo.`
-          )
-        } else {
-          Alert.alert('Atención', 'El registro por red social quedó incompleto.')
-        }
-      }
-    } catch (err: any) {
-      const message = `${err?.errors?.[0]?.message || ''} ${err?.message || ''} ${String(err || '')}`.toLowerCase()
-      if (message.includes('already signed in') || message.includes("you're already signed in")) {
-        router.replace('/(tabs)')
+        router.replace('/oauth-native-callback')
         return
       }
-      Alert.alert('Error', `No se pudo iniciar sesión con ${strategy}`)
+
+      const oauthStatus = oauthSignUp?.status ?? oauthSignIn?.status
+      if (oauthStatus === 'missing_requirements') {
+        const missingFields = oauthSignUp?.missingFields?.join(', ') || 'datos requeridos'
+        Alert.alert('Faltan datos', `No se completó el registro con ${strategy}. Clerk requiere: ${missingFields}.`)
+        return
+      }
+
+      Alert.alert('Aviso', 'No se pudo completar el registro social. Intenta nuevamente o usa correo.')
+    } catch (err: any) {
+      Alert.alert('Error', getErrorMessage(err, `No se pudo iniciar sesión con ${strategy}`))
     } finally {
       setIsLoading(false)
     }
@@ -81,11 +94,19 @@ export default function SignUpPage() {
       return
     }
 
+    if (!emailAddress || !password) {
+      Alert.alert('Campos requeridos', 'Ingresa al menos correo y contraseña.')
+      return
+    }
+
     setIsLoading(true)
     try {
+      const cleanFirstName = firstName.trim()
+      const cleanLastName = lastName.trim()
+
       const createResult = await signUp.create({
-        firstName,
-        lastName,
+        ...(cleanFirstName ? { firstName: cleanFirstName } : {}),
+        ...(cleanLastName ? { lastName: cleanLastName } : {}),
         emailAddress,
       })
       if (createResult.error) {
@@ -106,7 +127,7 @@ export default function SignUpPage() {
       }
       setPendingVerification(true)
     } catch (err: any) {
-      Alert.alert('Fallo en registro', err.errors?.[0]?.longMessage || err.message)
+      Alert.alert('Fallo en registro', getErrorMessage(err, 'No se pudo iniciar el registro.'))
     } finally { setIsLoading(false) }
   }
 
@@ -125,17 +146,24 @@ export default function SignUpPage() {
 
       if (signUp.status === 'complete') {
         const finalizeResult = await signUp.finalize({
-          navigate: () => router.replace('/(tabs)'),
+          navigate: ({ session }) => {
+            if (session?.currentTask) {
+              Alert.alert('Acción requerida', 'Tu sesión requiere completar una tarea adicional en Clerk.')
+            }
+          },
         })
 
         if (finalizeResult.error) {
           Alert.alert('Error', finalizeResult.error.message)
+          return
         }
+
+        router.replace('/(tabs)')
       } else {
-        Alert.alert('Faltan datos', `Clerk requiere: ${signUp.missingFields?.join(', ')}`)
+        Alert.alert('Faltan datos', `Clerk requiere: ${signUp.missingFields?.join(', ') || 'requisitos adicionales'}`)
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message)
+      Alert.alert('Error', getErrorMessage(err, 'No se pudo verificar el código.'))
     } finally { setIsLoading(false) }
   }
 
@@ -144,8 +172,20 @@ export default function SignUpPage() {
       <ThemedView style={styles.container}>
         <ThemedText type="title" style={styles.title}>Verifica tu correo</ThemedText>
         <TextInput style={styles.input} value={code} placeholder="Código" onChangeText={setCode} keyboardType="numeric" />
-        <Pressable style={styles.button} onPress={onPressVerify} disabled={isLoading}>
-          <ThemedText style={styles.buttonText}>{isLoading ? 'Verificando...' : 'Verificar'}</ThemedText>
+        <Pressable style={styles.button} onPress={onPressVerify} disabled={isBusy}>
+          <ThemedText style={styles.buttonText}>{isBusy ? 'Verificando...' : 'Verificar'}</ThemedText>
+        </Pressable>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={async () => {
+            const resendResult = await signUp.verifications.sendEmailCode()
+            if (resendResult.error) {
+              Alert.alert('Error', resendResult.error.message)
+            }
+          }}
+          disabled={isBusy}
+        >
+          <ThemedText style={styles.secondaryButtonText}>Enviar código otra vez</ThemedText>
         </Pressable>
       </ThemedView>
     )
@@ -157,14 +197,11 @@ export default function SignUpPage() {
         <ThemedText type="title" style={styles.title}>Crear Cuenta</ThemedText>
 
         <View style={styles.socialContainer}>
-          <Pressable style={[styles.socialButton, { backgroundColor: '#DB4437' }]} onPress={() => handleOAuth('google')} disabled={isLoading}>
+          <Pressable style={[styles.socialButton, { backgroundColor: '#DB4437' }]} onPress={() => handleOAuth('google')} disabled={isBusy}>
             <ThemedText style={styles.socialButtonText}>Google</ThemedText>
           </Pressable>
-          <Pressable style={[styles.socialButton, { backgroundColor: '#000' }]} onPress={() => handleOAuth('apple')} disabled={isLoading}>
+          <Pressable style={[styles.socialButton, { backgroundColor: '#000' }]} onPress={() => handleOAuth('apple')} disabled={isBusy}>
             <ThemedText style={styles.socialButtonText}>Apple</ThemedText>
-          </Pressable>
-          <Pressable style={[styles.socialButton, { backgroundColor: '#0078D4' }]} onPress={() => handleOAuth('microsoft')} disabled={isLoading}>
-            <ThemedText style={styles.socialButtonText}>Microsoft</ThemedText>
           </Pressable>
         </View>
 
@@ -179,8 +216,8 @@ export default function SignUpPage() {
         <TextInput style={styles.input} autoCapitalize="none" value={emailAddress} placeholder="Correo" onChangeText={setEmailAddress} keyboardType="email-address" />
         <TextInput style={styles.input} value={password} placeholder="Contraseña" secureTextEntry onChangeText={setPassword} />
 
-        <Pressable style={styles.button} onPress={onSignUpPress} disabled={isLoading || !emailAddress || !password || !firstName || !lastName}>
-          <ThemedText style={styles.buttonText}>{isLoading ? 'Cargando...' : 'Registrarse'}</ThemedText>
+        <Pressable style={styles.button} onPress={onSignUpPress} disabled={isBusy || !emailAddress || !password}>
+          <ThemedText style={styles.buttonText}>{isBusy ? 'Cargando...' : 'Registrarse'}</ThemedText>
         </Pressable>
 
         <View style={styles.linkContainer}>
@@ -194,11 +231,14 @@ export default function SignUpPage() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, justifyContent: 'center', gap: 12 },
+  centeredContainer: { alignItems: 'center' },
   title: { marginBottom: 10, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 10 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff', color: '#000' },
   button: { backgroundColor: '#0a7ea4', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
   buttonText: { color: '#fff', fontWeight: 'bold' },
+  secondaryButton: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  secondaryButtonText: { color: '#0a7ea4', fontWeight: '600' },
   linkContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
   socialContainer: { flexDirection: 'row', gap: 10, marginBottom: 10, justifyContent: 'space-between' },
   socialButton: { paddingVertical: 12, borderRadius: 8, alignItems: 'center', flex: 1 },

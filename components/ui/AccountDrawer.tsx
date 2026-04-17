@@ -4,14 +4,15 @@ import { useAuth, useUser } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Image,
-    Modal,
-    Pressable,
-    StyleSheet,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  Alert,
+  Animated,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from 'react-native';
 
 type AccountDrawerProps = {
@@ -28,6 +29,7 @@ export default function AccountDrawer({ visible, onClose }: AccountDrawerProps) 
   const { user } = useUser();
 
   const [rendered, setRendered] = useState(visible);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(DRAWER_WIDTH)).current;
 
@@ -130,12 +132,26 @@ export default function AccountDrawer({ visible, onClose }: AccountDrawerProps) 
           <View style={[styles.footer, { borderTopColor: colors.border }]}>
             <TouchableOpacity
               style={styles.signOutButton}
+              disabled={isSigningOut}
               onPress={async () => {
-                await signOut();
+                if (isSigningOut) {
+                  return;
+                }
+
+                setIsSigningOut(true);
+                try {
+                  await signOut();
+                  onClose();
+                } catch (error: any) {
+                  const message = error?.errors?.[0]?.message || error?.message || 'No se pudo cerrar sesión. Intenta nuevamente.';
+                  Alert.alert('Error', message);
+                } finally {
+                  setIsSigningOut(false);
+                }
               }}
             >
               <Ionicons name="log-out-outline" size={18} color="#fff" />
-              <ThemedText style={styles.signOutText}>CERRAR SESION</ThemedText>
+              <ThemedText style={styles.signOutText}>{isSigningOut ? 'CERRANDO...' : 'CERRAR SESION'}</ThemedText>
             </TouchableOpacity>
           </View>
         </Animated.View>
