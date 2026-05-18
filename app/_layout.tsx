@@ -1,9 +1,10 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AppPreferencesProvider, useAppPreferences } from '@/services/app-preferences';
 
 // Clerk
 import { ClerkProvider, useAuth } from '@clerk/expo';
@@ -20,16 +21,28 @@ if (!publishableKey) {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <RootNavigator />
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <AppPreferencesProvider>
+        <AppThemeShell />
+      </AppPreferencesProvider>
     </ClerkProvider>
     
+  );
+}
+
+function AppThemeShell() {
+  const systemColorScheme = useColorScheme();
+  const { preferences } = useAppPreferences();
+
+  const resolvedScheme =
+    preferences.themeMode === 'system' ? systemColorScheme : preferences.themeMode;
+
+  return (
+    <ThemeProvider value={resolvedScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <RootNavigator />
+      <StatusBar style="auto" />
+    </ThemeProvider>
   );
 }
 
@@ -47,9 +60,10 @@ function RootNavigator() {
       <Stack.Protected guard={Boolean(isLoaded && isSignedIn)}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="cart" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[id]/food/[foodId]" options={{ headerShown: false }} />
-          <Stack.Screen name="orders/[orderId]" options={{ headerShown: false }} />
+        <Stack.Screen name="orders/[orderId]" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );
