@@ -46,6 +46,7 @@ function RootNavigator() {
 
       <Stack.Protected guard={Boolean(isLoaded && isSignedIn)}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="cart" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[id]/food/[foodId]" options={{ headerShown: false }} />
           <Stack.Screen name="orders/[orderId]" options={{ headerShown: false }} />

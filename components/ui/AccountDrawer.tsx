@@ -4,15 +4,15 @@ import { useAuth, useUser } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    Alert,
+    Animated,
+    Image,
+    Modal,
+    Pressable,
+    StyleSheet,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from 'react-native';
 
 type AccountDrawerProps = {
@@ -125,7 +125,7 @@ export default function AccountDrawer({ visible, onClose }: AccountDrawerProps) 
 
           <View style={styles.menuList}>
             <MenuItem icon="person-circle-outline" label="Cuenta" color={colors.text} />
-            <MenuItem icon="bag-handle-outline" label="Mis pedidos" color={colors.text} />
+            <MenuItem icon="settings-outline" label="Configuración" color={colors.text} />
             <MenuItem icon="headset-outline" label="Soporte" color={colors.text} />
           </View>
 

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { Colors } from '@/constants/Colors';
+import { addToCart } from '@/services/cart';
 import {
     type FoodDetail,
     type IngredientGroup,
@@ -94,6 +95,27 @@ export default function FoodCustomizationScreen() {
     }
     return Math.round(food.precioCop * selectedSize.multiplier) + extrasTotal;
   }, [extrasTotal, food, selectedSize]);
+
+  const selectedIngredients = useMemo(() => {
+    if (!food) {
+      return [] as string[];
+    }
+
+    return food.ingredientGroups.flatMap((group) => {
+      const selectedIds = selectedOptional[group.id] ?? [];
+      return group.options.filter((option) => selectedIds.includes(option.id)).map((option) => option.label);
+    });
+  }, [food, selectedOptional]);
+
+  const requiredIngredients = useMemo(() => {
+    if (!food) {
+      return [] as string[];
+    }
+
+    return food.ingredientGroups
+      .filter((group) => group.required)
+      .flatMap((group) => group.options.map((option) => option.label));
+  }, [food]);
 
   if (!food) {
     return (
@@ -182,9 +204,29 @@ export default function FoodCustomizationScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}> 
-        <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.primary }]} activeOpacity={0.88}>
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          activeOpacity={0.88}
+          onPress={() => {
+            if (!food || !selectedSize) {
+              return;
+            }
+
+            addToCart({
+              id: food.id,
+              name: food.nombre,
+              restaurantName: food.restaurantName,
+              image: food.imagen,
+              quantity: 1,
+              unitPrice: total,
+              sizeLabel: selectedSize.label,
+              ingredients: [...requiredIngredients, ...selectedIngredients],
+            });
+            router.back();
+          }}
+        >
           <Ionicons name="cart-outline" size={18} color="#fff" />
-          <Text style={styles.addButtonText}>Anadir producto • {formatCop(total)}</Text>
+          <Text style={styles.addButtonText}>Añadir producto • {formatCop(total)}</Text>
         </TouchableOpacity>
       </View>
     </View>

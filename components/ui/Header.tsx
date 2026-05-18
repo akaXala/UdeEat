@@ -1,11 +1,16 @@
-import { Colors } from '@/constants/Colors'; // Asegúrate de que la ruta sea correcta
+import { Colors } from '@/constants/Colors';
+import { getCartCount, useCartItems } from '@/services/cart';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function Header() {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  useCartItems();
+  const router = useRouter();
+  const cartCount = getCartCount();
 
   return (
     <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
@@ -20,12 +25,13 @@ export default function Header() {
         </Text>
       </View>
 
-      <Pressable style={styles.cartButton} onPress={() => console.log("Ir al carrito")}>
+      <Pressable style={styles.cartButton} onPress={() => router.push('/cart')}>
         <Ionicons name="cart-outline" size={26} color={colors.text} />
-        
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>2</Text>
-        </View>
+        {cartCount > 0 ? (
+          <View style={[styles.badge, { backgroundColor: colors.error }]}>
+            <Text style={styles.badgeText}>{cartCount}</Text>
+          </View>
+        ) : null}
       </Pressable>
     </View>
   );
