@@ -56,6 +56,6 @@ const styles = StyleSheet.create({
     paddingBottom: 130,
   },
   cardsContainer: {
-    alignItems: 'center',
+    alignItems: 'stretch',
   },
 });

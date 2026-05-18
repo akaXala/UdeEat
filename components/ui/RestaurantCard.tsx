@@ -30,7 +30,7 @@ const RestaurantCard = ({
                 {
                     backgroundColor: theme.card,
                     borderColor: theme.border,
-                    borderWidth: 0.5
+              borderWidth: 0.5,
                 }
             ]}
         >
@@ -64,9 +64,9 @@ const RestaurantCard = ({
 
 const styles = StyleSheet.create({
   card: {
-    width: 280,
+    width: '100%',
     borderRadius: 20,
-    margin: 10,
+    marginBottom: 14,
     overflow: 'hidden',
     // Sombra para dar profundidad
     shadowColor: "#000",

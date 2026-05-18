@@ -48,6 +48,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="restaurant/[id]/food/[foodId]" options={{ headerShown: false }} />
+          <Stack.Screen name="orders/[orderId]" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
   );
