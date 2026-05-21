@@ -6,6 +6,7 @@ import Header from '@/components/ui/Header';
 import OrderListCard from '@/components/ui/OrderListCard';
 import { Colors } from '@/constants/Colors';
 import { useTabSlideAnimation } from '@/hooks/use-tab-slide-animation';
+import { getOrderRatings } from '@/services/order-ratings';
 import { getOrders, Order } from '@/services/orders';
 import { useRouter } from 'expo-router';
 
@@ -16,12 +17,16 @@ export default function OrdenesScreen() {
   const router = useRouter();
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [ratings, setRatings] = useState<Record<string, unknown>>({});
   const [active, setActive] = useState<'inprogress' | 'past'>('inprogress');
 
   useEffect(() => {
     let mounted = true;
-    getOrders().then((data) => {
-      if (mounted) setOrders(data);
+    Promise.all([getOrders(), getOrderRatings()]).then(([data, orderRatings]) => {
+      if (mounted) {
+        setOrders(data);
+        setRatings(orderRatings);
+      }
     });
     return () => {
       mounted = false;
@@ -75,7 +80,13 @@ export default function OrdenesScreen() {
                   id={order.id}
                   number={order.number}
                   status={order.status}
-                  subtitle={statusLabel[order.status] ?? order.status}
+                  subtitle={
+                    order.status === 'delivered'
+                      ? ratings[order.id]
+                        ? 'Entregado • Calificada'
+                        : 'Entregado • Pendiente de calificar'
+                      : statusLabel[order.status] ?? order.status
+                  }
                   date={formatDate(order.placedAt)}
                   onPress={() => router.push(`/orders/${order.id}`)}
                 />

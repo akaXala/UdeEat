@@ -14,6 +14,11 @@ export type Restaurant = {
   rating: number;
   tiempo: string;
   imagen: string;
+  location: {
+    latitude: number;
+    longitude: number;
+    label: string;
+  };
   menu: FoodItem[];
 };
 
@@ -25,6 +30,11 @@ export const restaurants: Restaurant[] = [
     rating: 4.8,
     tiempo: '15-25 min',
     imagen: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop',
+    location: {
+      latitude: 6.2669,
+      longitude: -75.5677,
+      label: 'Cerca de la entrada principal de la escuela',
+    },
     menu: [
       {
         id: 'parrilla-mixta',
@@ -59,6 +69,11 @@ export const restaurants: Restaurant[] = [
     rating: 4.7,
     tiempo: '18-28 min',
     imagen: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?q=80&w=1200&auto=format&fit=crop',
+    location: {
+      latitude: 6.2664,
+      longitude: -75.5668,
+      label: 'Bloque de cafeterías, junto al patio central',
+    },
     menu: [
       {
         id: 'bandeja-paisa',
@@ -93,6 +108,11 @@ export const restaurants: Restaurant[] = [
     rating: 4.9,
     tiempo: '20-30 min',
     imagen: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=1200&auto=format&fit=crop',
+    location: {
+      latitude: 6.2672,
+      longitude: -75.5684,
+      label: 'Frente a la plazoleta de la escuela',
+    },
     menu: [
       {
         id: 'roll-salmon',
@@ -127,6 +147,11 @@ export const restaurants: Restaurant[] = [
     rating: 4.6,
     tiempo: '25-35 min',
     imagen: 'https://images.unsplash.com/photo-1521389508051-d7ffb5dc8d70?q=80&w=1200&auto=format&fit=crop',
+    location: {
+      latitude: 6.2658,
+      longitude: -75.5672,
+      label: 'Zona sur, al lado de las escaleras principales',
+    },
     menu: [
       {
         id: 'pasta-alfredo',
@@ -161,6 +186,11 @@ export const restaurants: Restaurant[] = [
     rating: 4.5,
     tiempo: '15-22 min',
     imagen: 'https://images.unsplash.com/photo-1613514785940-daed07799d9b?q=80&w=1200&auto=format&fit=crop',
+    location: {
+      latitude: 6.2661,
+      longitude: -75.5689,
+      label: 'Cerca al acceso lateral de la escuela',
+    },
     menu: [
       {
         id: 'tacos-birria',
@@ -195,6 +225,11 @@ export const restaurants: Restaurant[] = [
     rating: 4.8,
     tiempo: '12-20 min',
     imagen: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=1200&auto=format&fit=crop',
+    location: {
+      latitude: 6.2676,
+      longitude: -75.5679,
+      label: 'Junto al jardín central de la escuela',
+    },
     menu: [
       {
         id: 'bowl-proteina',

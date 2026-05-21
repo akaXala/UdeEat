@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import Header from '@/components/ui/Header';
 import OrderDetailItem from '@/components/ui/OrderDetailItem';
 import { Colors } from '@/constants/Colors';
+import { getOrderRating } from '@/services/order-ratings';
 import { getOrderById, Order } from '@/services/orders';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -17,32 +18,31 @@ export default function OrderDetailScreen() {
   const colors = Colors[colorScheme];
 
   const [order, setOrder] = useState<Order | null>(null);
+  const [orderRating, setOrderRating] = useState<Awaited<ReturnType<typeof getOrderRating>>>(null);
 
   useEffect(() => {
-    if (!orderId) return;
     let mounted = true;
-    getOrderById(orderId).then((o) => {
-      if (mounted) setOrder(o);
-    });
+
+    async function loadOrder() {
+      if (!orderId) {
+        return;
+      }
+
+      const [foundOrder, rating] = await Promise.all([getOrderById(orderId), getOrderRating(orderId)]);
+      if (!mounted) {
+        return;
+      }
+
+      setOrder(foundOrder);
+      setOrderRating(rating);
+    }
+
+    loadOrder();
+
     return () => {
       mounted = false;
     };
   }, [orderId]);
-
-  function formatCop(value: number) {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
-  }
-
-  if (!order) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Header />
-        <ScrollView contentContainerStyle={styles.content}>
-          <ThemedText>Cargando orden…</ThemedText>
-        </ScrollView>
-      </View>
-    );
-  }
 
   const titleMap: Record<string, string> = {
     delivered: 'Orden entregada',
@@ -51,6 +51,25 @@ export default function OrderDetailScreen() {
     ready: 'Listo para recoger',
     cancelled: 'Orden cancelada',
   };
+
+  const restaurantStars = useMemo(() => {
+    return Math.max(1, Math.min(5, orderRating?.restaurantRating ?? 0));
+  }, [orderRating]);
+
+  function formatCop(value: number) {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(value);
+  }
+
+  if (!order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}> 
+        <Header />
+        <ScrollView contentContainerStyle={styles.content}>
+          <ThemedText>Cargando orden…</ThemedText>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
@@ -90,6 +109,28 @@ export default function OrderDetailScreen() {
           />
         ))}
 
+        {order.status === 'delivered' ? (
+          <View style={[styles.ratingCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <ThemedText style={[styles.sectionTitle, { color: colors.text, marginTop: 0 }]}>Calificación</ThemedText>
+
+            {orderRating ? (
+              <View style={styles.ratingSummary}>
+                <ThemedText style={{ color: colors.textSecondary }}>Restaurant: {'★'.repeat(restaurantStars)}</ThemedText>
+                <ThemedText style={{ color: colors.textSecondary }}>
+                  {Object.keys(orderRating.itemRatings).length > 0 ? 'Platillos calificados' : 'Sin platillos calificados'}
+                </ThemedText>
+                <Pressable style={[styles.rateAgainButton, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => router.push({ pathname: '/rate-order', params: { orderId: order.id } })}>
+                  <ThemedText style={{ color: colors.primary, fontWeight: '800' }}>Ver calificación</ThemedText>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={[styles.rateButton, { backgroundColor: colors.primary }]} onPress={() => router.push({ pathname: '/rate-order', params: { orderId: order.id } })}>
+                <ThemedText style={styles.rateButtonText}>Calificar pedido</ThemedText>
+              </Pressable>
+            )}
+          </View>
+        ) : null}
+
         <View style={{ height: 8 }} />
 
         <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>Resumen de pago</ThemedText>
@@ -111,12 +152,39 @@ const styles = StyleSheet.create({
   backText: { fontSize: 16, fontWeight: '700' },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconCircle: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center' },
-  heroText: { marginLeft: 8 },
+  heroText: { marginLeft: 8, flex: 1 },
   heroTitle: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
   subtitle: { fontSize: 15, marginTop: 6 },
   restaurant: { fontSize: 14, marginTop: 6 },
   sectionTitle: { fontSize: 22, fontWeight: '800', marginTop: 14, marginBottom: 4 },
   sectionLabel: { fontSize: 13, marginTop: 8, marginBottom: 6 },
+  ratingCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 14,
+  },
+  ratingSummary: {
+    gap: 8,
+  },
+  rateButton: {
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rateButtonText: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+  rateAgainButton: {
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, alignItems: 'center' },
   total: { fontSize: 18, fontWeight: '700' },
 });
