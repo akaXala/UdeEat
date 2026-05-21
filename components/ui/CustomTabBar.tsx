@@ -2,8 +2,8 @@ import { Colors } from '@/constants/Colors';
 import { setPendingTabSlideDirection } from '@/hooks/use-tab-slide-animation';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Keyboard, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Keyboard, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 import AccountDrawer from '@/components/ui/AccountDrawer';
 import FloatingSearchBar from '@/components/ui/FloatingSearchBar';
@@ -14,15 +14,6 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const tabBarProgress = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.timing(tabBarProgress, {
-      toValue: isSearchOpen ? 0 : 1,
-      duration: isSearchOpen ? 220 : 260,
-      useNativeDriver: true,
-    }).start();
-  }, [isSearchOpen, tabBarProgress]);
 
   const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
     index: 'home-outline',
@@ -84,29 +75,7 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
 
   return (
     <View style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <Animated.View
-        pointerEvents={isSearchOpen ? 'none' : 'auto'}
-        style={[
-          styles.tabBarWrapper,
-          {
-            opacity: tabBarProgress,
-            transform: [
-              {
-                scale: tabBarProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.92, 1],
-                }),
-              },
-              {
-                translateY: tabBarProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [16, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
+      {!isSearchOpen ? (
         <View style={[styles.tabBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
           {actions.map((action) => {
             const route = state.routes.find((item) => item.name === action.key);
@@ -128,12 +97,12 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
               >
                 <View style={styles.tabContent}>
                   {isFocused ? (
-                    <Animated.View style={[styles.activeTabContainer, { backgroundColor: colors.tint }]}>
+                    <View style={[styles.activeTabContainer, { backgroundColor: colors.tint }]}>
                       <Ionicons name={iconName} size={22} color={colorScheme === 'light' ? '#FFF' : '#10141C'} />
                       <Text style={[styles.activeLabel, { color: colorScheme === 'light' ? '#FFF' : '#10141C' }]} numberOfLines={1}>
                         {action.label}
                       </Text>
-                    </Animated.View>
+                    </View>
                   ) : (
                     <View style={styles.inactiveTabContainer}>
                       <Ionicons name={iconName} size={24} color={colors.textSecondary} />
@@ -144,7 +113,7 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
             );
           })}
         </View>
-      </Animated.View>
+      ) : null}
 
       <FloatingSearchBar
         visible={isSearchOpen}
@@ -168,10 +137,6 @@ const styles = StyleSheet.create({
     right: 20,
     elevation: 10, // Sombra para Android
     zIndex: 1000,
-  },
-  // La barra en sí
-  tabBarWrapper: {
-    zIndex: 2,
   },
   tabBar: {
     flexDirection: 'row',

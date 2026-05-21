@@ -2,17 +2,18 @@ import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/Colors';
 import { useAuth, useUser } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    Alert,
+    Animated,
+    Image,
+    Modal,
+    Pressable,
+    StyleSheet,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from 'react-native';
 
 type AccountDrawerProps = {
@@ -27,6 +28,7 @@ export default function AccountDrawer({ visible, onClose }: AccountDrawerProps) 
   const colors = Colors[colorScheme];
   const { signOut } = useAuth();
   const { user } = useUser();
+  const router = useRouter();
 
   const [rendered, setRendered] = useState(visible);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -125,7 +127,15 @@ export default function AccountDrawer({ visible, onClose }: AccountDrawerProps) 
 
           <View style={styles.menuList}>
             <MenuItem icon="person-circle-outline" label="Cuenta" color={colors.text} />
-            <MenuItem icon="bag-handle-outline" label="Mis pedidos" color={colors.text} />
+            <MenuItem
+              icon="settings-outline"
+              label="Configuración"
+              color={colors.text}
+              onPress={() => {
+                onClose();
+                router.push('/settings');
+              }}
+            />
             <MenuItem icon="headset-outline" label="Soporte" color={colors.text} />
           </View>
 
@@ -164,11 +174,12 @@ type MenuItemProps = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   color: string;
+  onPress?: () => void;
 };
 
-function MenuItem({ icon, label, color }: MenuItemProps) {
+function MenuItem({ icon, label, color, onPress }: MenuItemProps) {
   return (
-    <TouchableOpacity activeOpacity={0.8} style={styles.menuItem}>
+    <TouchableOpacity activeOpacity={0.8} style={styles.menuItem} onPress={onPress}>
       <Ionicons name={icon} size={22} color={color} />
       <ThemedText style={styles.menuLabel}>{label}</ThemedText>
     </TouchableOpacity>
