@@ -29,6 +29,7 @@ export type FoodDetail = FoodItem & {
   descripcion: string;
   sizeOptions: SizeOption[];
   ingredientGroups: IngredientGroup[];
+  restaurantName?: string;
 };
 
 function mapBackendDishToFrontend(backendDish: any): FoodItem {
@@ -131,19 +132,90 @@ export async function getMenuByRestaurant(restaurantId: string): Promise<FoodIte
   }
 }
 
+function mapBackendDishToFoodDetail(backendDish: any): FoodDetail {
+  const food = mapBackendDishToFrontend(backendDish);
+  
+  const descripcion = backendDish.description || backendDish.descripcion || 'Plato preparado al momento.';
+
+  const backendSizes = backendDish.size_options || backendDish.sizeOptions;
+  let sizeOptions: SizeOption[] = [];
+  if (Array.isArray(backendSizes) && backendSizes.length > 0) {
+    sizeOptions = backendSizes.map((size: any) => ({
+      id: size.id || Math.random().toString(),
+      label: size.label || 'Tamaño',
+      multiplier: size.multiplier || 1,
+    }));
+  } else {
+    sizeOptions = [
+      { id: 'size-s', label: 'Personal', multiplier: 0.9 },
+      { id: 'size-m', label: 'Regular', multiplier: 1 },
+      { id: 'size-l', label: 'Grande', multiplier: 1.18 },
+    ];
+  }
+
+  const backendGroups = backendDish.ingredient_groups || backendDish.ingredientGroups;
+  let ingredientGroups: IngredientGroup[] = [];
+  if (Array.isArray(backendGroups) && backendGroups.length > 0) {
+    ingredientGroups = backendGroups.map((group: any) => ({
+      id: group.id || Math.random().toString(),
+      title: group.title || 'Personalización',
+      required: group.required ?? false,
+      minSelect: group.minSelect ?? 0,
+      maxSelect: group.maxSelect ?? 0,
+      options: (group.options || []).map((opt: any) => ({
+        id: opt.id || Math.random().toString(),
+        label: opt.label || '',
+        extraCop: opt.extraCop || opt.extra_cop || 0,
+      })),
+    }));
+  } else {
+    const detailFallback = buildFoodDetail(food);
+    ingredientGroups = detailFallback.ingredientGroups;
+  }
+
+  return {
+    ...food,
+    descripcion,
+    sizeOptions,
+    ingredientGroups,
+  };
+}
+
 export async function getFoodDetail(restaurantId: string, foodId: string): Promise<FoodDetail | undefined> {
   try {
-    const menu = await getMenuByRestaurant(restaurantId);
-    const food = menu.find((item) => item.id === foodId);
+    const [restRes, menuRes] = await Promise.all([
+      fetch(`${API_BASE_URL}/restaurants/${restaurantId}`),
+      fetch(`${API_BASE_URL}/restaurants/menu/${restaurantId}`)
+    ]);
     
-    if (!food) return undefined;
+    if (!menuRes.ok) throw new Error(`HTTP Error on Menu: ${menuRes.status}`);
+    
+    const data = await menuRes.json();
+    const menuArray = Array.isArray(data) ? data : [];
+    
+    const backendDish = menuArray.find(
+      (item: any) =>
+        (item.id && String(item.id) === foodId) ||
+        (item._id && String(item._id) === foodId)
+    );
+    
+    if (!backendDish) return undefined;
 
-    return buildFoodDetail(food);
+    let restaurantName = '';
+    if (restRes.ok) {
+      const restData = await restRes.json();
+      restaurantName = restData?.name || '';
+    }
+
+    const foodDetail = mapBackendDishToFoodDetail(backendDish);
+    foodDetail.restaurantName = restaurantName;
+    return foodDetail;
   } catch (error) {
     console.error(`Error obteniendo detalle de comida ${foodId}:`, error);
     return undefined;
   }
 }
+
 
 function buildFoodDetail(food: FoodItem): FoodDetail {
   const lowerName = food.nombre.toLowerCase();
