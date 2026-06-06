@@ -25,6 +25,10 @@ export default function CartScreen() {
       <Header />
 
       <View style={styles.content}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={18} color={colors.primary} />
+          <ThemedText style={[styles.backText, { color: colors.primary }]}>Volver al menú</ThemedText>
+        </Pressable>
         <View style={styles.titleRow}>
           <ThemedText style={[styles.title, { color: colors.text }]}>Carrito</ThemedText>
           <ThemedText style={{ color: colors.textSecondary }}>{items.length} productos</ThemedText>
@@ -33,9 +37,15 @@ export default function CartScreen() {
         {items.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="cart-outline" size={48} color={colors.textSecondary} />
-            <ThemedText style={{ color: colors.textSecondary, textAlign: 'center' }}>
+            <ThemedText style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 12 }}>
               Aún no has agregado productos.
             </ThemedText>
+            <Pressable
+              style={[styles.emptyStateButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.replace('/(tabs)')}
+            >
+              <ThemedText style={styles.emptyStateButtonText}>Explorar restaurantes</ThemedText>
+            </Pressable>
           </View>
         ) : (
           <FlatList
@@ -165,4 +175,26 @@ const styles = StyleSheet.create({
   },
   checkoutText: { color: '#fff', fontWeight: '800' },
   clearButton: { alignItems: 'center', paddingBottom: 16 },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginBottom: 16,
+  },
+  backText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyStateButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 8,
+  },
+  emptyStateButtonText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 15,
+  },
 });
