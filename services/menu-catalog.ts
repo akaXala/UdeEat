@@ -33,12 +33,14 @@ export type FoodDetail = FoodItem & {
 
 function mapBackendDishToFrontend(backendDish: any): FoodItem {
   return {
-    id: backendDish.id || backendDish._id,
-    nombre: backendDish.name || backendDish.nombre, // Soporta ambos en caso de cambios
-    precioCop: backendDish.price || backendDish.precioCop || 0, 
-    calorias: backendDish.calories || backendDish.calorias || 0,
-    rating: backendDish.rating || 0,
-    imagen: backendDish.image || backendDish.imagen || '',
+    // Si Go manda el ID dentro de un objeto (como hace bson a veces), lo extraemos
+    id: backendDish?.id || backendDish?._id || Math.random().toString(), 
+    nombre: backendDish?.name || backendDish?.nombre || 'Platillo sin nombre',
+    // Agregamos 'price_cop' que es como lo envía tu base de datos ahora
+    precioCop: backendDish?.price_cop || backendDish?.price || backendDish?.precioCop || 0, 
+    calorias: backendDish?.calories || backendDish?.calorias || 0,
+    rating: backendDish?.rating || 0,
+    imagen: backendDish?.image || backendDish?.imagen || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop',
   };
 }
 
@@ -49,17 +51,22 @@ export async function getRestaurants(): Promise<Restaurant[]> {
     
     const backendData = await response.json();
     
-    // Mapeamos del backend (Inglés) al frontend (Español)
-    return backendData.map((rest: any) => ({
-      id: rest.id,
-      nombre: rest.name,
-      categoria: rest.category,
-      rating: rest.rating,
-      tiempo: rest.time,
-      imagen: rest.image,
-      location: rest.location,
-      menu: [] // En la lista general no necesitamos el menú completo
-    }));
+    // 2. Aseguramos que el ID del restaurante se guarde correctamente
+    return backendData.map((rest: any) => {
+      // Extraemos el ID real, ya sea que venga como rest.id, rest._id, o un objeto
+      const realId = rest.id || rest._id;
+      
+      return {
+        id: typeof realId === 'object' ? realId.toString() : realId,
+        nombre: rest.name,
+        categoria: rest.category,
+        rating: rest.rating,
+        tiempo: rest.time,
+        imagen: rest.image,
+        location: rest.location,
+        menu: [] 
+      };
+    });
     
   } catch (error) {
     console.error('Error obteniendo restaurantes:', error);
@@ -69,31 +76,44 @@ export async function getRestaurants(): Promise<Restaurant[]> {
 
 export async function getRestaurantById(id: string): Promise<Restaurant | undefined> {
   try {
-    // 💡 LA MAGIA: Hacemos 2 peticiones al mismo tiempo para traer restaurante + menú
+    // Hacemos las dos peticiones al mismo tiempo
     const [restRes, menuRes] = await Promise.all([
       fetch(`${API_BASE_URL}/restaurants/${id}`),
       fetch(`${API_BASE_URL}/restaurants/menu/${id}`)
     ]);
     
-    if (!restRes.ok) return undefined;
+    if (!restRes.ok) {
+      console.warn(`[getRestaurantById] Error cargando restaurante: ${restRes.status}`);
+      return undefined;
+    }
     
     const backendRest = await restRes.json();
-    const backendMenu = menuRes.ok ? await menuRes.json() : [];
+    let backendMenu = [];
     
-    // Unimos y mapeamos para que sea idéntico a tu interfaz Restaurant
+    if (menuRes.ok) {
+      const menuData = await menuRes.json();
+      // Verificamos que sea un arreglo válido (evitamos que un null de Go rompa la app)
+      backendMenu = Array.isArray(menuData) ? menuData : [];
+    }
+
+    // REVISIÓN EN TERMINAL: Esto imprimirá en la consola de tu Expo Go lo que llegue
+    console.log(`🍔 Menú recibido para el restaurante ${id}:`, backendMenu);
+    
+    // Unimos los datos
     return {
-      id: backendRest.id,
+      id: backendRest.id || backendRest._id,
       nombre: backendRest.name,
       categoria: backendRest.category,
       rating: backendRest.rating,
       tiempo: backendRest.time,
       imagen: backendRest.image,
       location: backendRest.location,
-      menu: backendMenu.map(mapBackendDishToFrontend) // Transformamos el menú
+      // Aplicamos la traducción segura
+      menu: backendMenu.map(mapBackendDishToFrontend) 
     };
     
   } catch (error) {
-    console.error(`Error obteniendo restaurante ${id}:`, error);
+    console.error(`Error crítico obteniendo restaurante ${id}:`, error);
     return undefined;
   }
 }
