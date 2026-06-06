@@ -1,4 +1,6 @@
-import { restaurants, type FoodItem, type Restaurant } from '@/constants/restaurants';
+import { type FoodItem, type Restaurant } from '@/constants/restaurants';
+
+const API_BASE_URL = 'https://nq99z2pp-8080.use.devtunnels.ms/api/v1';
 
 export type { FoodItem, Restaurant };
 
@@ -29,28 +31,118 @@ export type FoodDetail = FoodItem & {
   ingredientGroups: IngredientGroup[];
 };
 
-// This service is intentionally async to ease migration to a real backend.
-// Replace the Promise.resolve(...) calls with API/DB requests when backend is ready.
+function mapBackendDishToFrontend(backendDish: any): FoodItem {
+  return {
+    // Si Go manda el ID dentro de un objeto (como hace bson a veces), lo extraemos
+    id: backendDish?.id || backendDish?._id || Math.random().toString(), 
+    nombre: backendDish?.name || backendDish?.nombre || 'Platillo sin nombre',
+    // Agregamos 'price_cop' que es como lo envía tu base de datos ahora
+    precioCop: backendDish?.price_cop || backendDish?.price || backendDish?.precioCop || 0, 
+    calorias: backendDish?.calories || backendDish?.calorias || 0,
+    rating: backendDish?.rating || 0,
+    imagen: backendDish?.image || backendDish?.imagen || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop',
+  };
+}
+
 export async function getRestaurants(): Promise<Restaurant[]> {
-  return Promise.resolve(restaurants);
+  try {
+    const response = await fetch(`${API_BASE_URL}/restaurants/`);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    
+    const backendData = await response.json();
+    
+    // 2. Aseguramos que el ID del restaurante se guarde correctamente
+    return backendData.map((rest: any) => {
+      // Extraemos el ID real, ya sea que venga como rest.id, rest._id, o un objeto
+      const realId = rest.id || rest._id;
+      
+      return {
+        id: typeof realId === 'object' ? realId.toString() : realId,
+        nombre: rest.name,
+        categoria: rest.category,
+        rating: rest.rating,
+        tiempo: rest.time,
+        imagen: rest.image,
+        location: rest.location,
+        menu: [] 
+      };
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo restaurantes:', error);
+    return [];
+  }
 }
 
 export async function getRestaurantById(id: string): Promise<Restaurant | undefined> {
-  return Promise.resolve(restaurants.find((item) => item.id === id));
+  try {
+    // Hacemos las dos peticiones al mismo tiempo
+    const [restRes, menuRes] = await Promise.all([
+      fetch(`${API_BASE_URL}/restaurants/${id}`),
+      fetch(`${API_BASE_URL}/restaurants/menu/${id}`)
+    ]);
+    
+    if (!restRes.ok) {
+      console.warn(`[getRestaurantById] Error cargando restaurante: ${restRes.status}`);
+      return undefined;
+    }
+    
+    const backendRest = await restRes.json();
+    let backendMenu = [];
+    
+    if (menuRes.ok) {
+      const menuData = await menuRes.json();
+      // Verificamos que sea un arreglo válido (evitamos que un null de Go rompa la app)
+      backendMenu = Array.isArray(menuData) ? menuData : [];
+    }
+
+    // REVISIÓN EN TERMINAL: Esto imprimirá en la consola de tu Expo Go lo que llegue
+    console.log(`🍔 Menú recibido para el restaurante ${id}:`, backendMenu);
+    
+    // Unimos los datos
+    return {
+      id: backendRest.id || backendRest._id,
+      nombre: backendRest.name,
+      categoria: backendRest.category,
+      rating: backendRest.rating,
+      tiempo: backendRest.time,
+      imagen: backendRest.image,
+      location: backendRest.location,
+      // Aplicamos la traducción segura
+      menu: backendMenu.map(mapBackendDishToFrontend) 
+    };
+    
+  } catch (error) {
+    console.error(`Error crítico obteniendo restaurante ${id}:`, error);
+    return undefined;
+  }
+}
+
+export async function getMenuByRestaurant(restaurantId: string): Promise<FoodItem[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/restaurants/menu/${restaurantId}`);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    
+    const data = await response.json();
+    return data.map(mapBackendDishToFrontend);
+  } catch (error) {
+    console.error(`Error obteniendo menú de ${restaurantId}:`, error);
+    return [];
+  }
 }
 
 export async function getFoodDetail(restaurantId: string, foodId: string): Promise<FoodDetail | undefined> {
-  const restaurant = restaurants.find((item) => item.id === restaurantId);
-  if (!restaurant) {
-    return Promise.resolve(undefined);
-  }
+  try {
+    const menu = await getMenuByRestaurant(restaurantId);
+    const food = menu.find((item) => item.id === foodId);
+    
+    if (!food) return undefined;
 
-  const food = restaurant.menu.find((item) => item.id === foodId);
-  if (!food) {
-    return Promise.resolve(undefined);
+    return buildFoodDetail(food);
+  } catch (error) {
+    console.error(`Error obteniendo detalle de comida ${foodId}:`, error);
+    return undefined;
   }
-
-  return Promise.resolve(buildFoodDetail(food));
 }
 
 function buildFoodDetail(food: FoodItem): FoodDetail {
