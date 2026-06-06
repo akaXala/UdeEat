@@ -1,4 +1,6 @@
-import { restaurants, type FoodItem, type Restaurant } from '@/constants/restaurants';
+import { type FoodItem, type Restaurant } from '@/constants/restaurants';
+
+const API_BASE_URL = 'https://nq99z2pp-8080.use.devtunnels.ms/api/v1';
 
 export type { FoodItem, Restaurant };
 
@@ -29,28 +31,98 @@ export type FoodDetail = FoodItem & {
   ingredientGroups: IngredientGroup[];
 };
 
-// This service is intentionally async to ease migration to a real backend.
-// Replace the Promise.resolve(...) calls with API/DB requests when backend is ready.
+function mapBackendDishToFrontend(backendDish: any): FoodItem {
+  return {
+    id: backendDish.id || backendDish._id,
+    nombre: backendDish.name || backendDish.nombre, // Soporta ambos en caso de cambios
+    precioCop: backendDish.price || backendDish.precioCop || 0, 
+    calorias: backendDish.calories || backendDish.calorias || 0,
+    rating: backendDish.rating || 0,
+    imagen: backendDish.image || backendDish.imagen || '',
+  };
+}
+
 export async function getRestaurants(): Promise<Restaurant[]> {
-  return Promise.resolve(restaurants);
+  try {
+    const response = await fetch(`${API_BASE_URL}/restaurants/`);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    
+    const backendData = await response.json();
+    
+    // Mapeamos del backend (Inglés) al frontend (Español)
+    return backendData.map((rest: any) => ({
+      id: rest.id,
+      nombre: rest.name,
+      categoria: rest.category,
+      rating: rest.rating,
+      tiempo: rest.time,
+      imagen: rest.image,
+      location: rest.location,
+      menu: [] // En la lista general no necesitamos el menú completo
+    }));
+    
+  } catch (error) {
+    console.error('Error obteniendo restaurantes:', error);
+    return [];
+  }
 }
 
 export async function getRestaurantById(id: string): Promise<Restaurant | undefined> {
-  return Promise.resolve(restaurants.find((item) => item.id === id));
+  try {
+    // 💡 LA MAGIA: Hacemos 2 peticiones al mismo tiempo para traer restaurante + menú
+    const [restRes, menuRes] = await Promise.all([
+      fetch(`${API_BASE_URL}/restaurants/${id}`),
+      fetch(`${API_BASE_URL}/restaurants/menu/${id}`)
+    ]);
+    
+    if (!restRes.ok) return undefined;
+    
+    const backendRest = await restRes.json();
+    const backendMenu = menuRes.ok ? await menuRes.json() : [];
+    
+    // Unimos y mapeamos para que sea idéntico a tu interfaz Restaurant
+    return {
+      id: backendRest.id,
+      nombre: backendRest.name,
+      categoria: backendRest.category,
+      rating: backendRest.rating,
+      tiempo: backendRest.time,
+      imagen: backendRest.image,
+      location: backendRest.location,
+      menu: backendMenu.map(mapBackendDishToFrontend) // Transformamos el menú
+    };
+    
+  } catch (error) {
+    console.error(`Error obteniendo restaurante ${id}:`, error);
+    return undefined;
+  }
+}
+
+export async function getMenuByRestaurant(restaurantId: string): Promise<FoodItem[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/restaurants/menu/${restaurantId}`);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    
+    const data = await response.json();
+    return data.map(mapBackendDishToFrontend);
+  } catch (error) {
+    console.error(`Error obteniendo menú de ${restaurantId}:`, error);
+    return [];
+  }
 }
 
 export async function getFoodDetail(restaurantId: string, foodId: string): Promise<FoodDetail | undefined> {
-  const restaurant = restaurants.find((item) => item.id === restaurantId);
-  if (!restaurant) {
-    return Promise.resolve(undefined);
-  }
+  try {
+    const menu = await getMenuByRestaurant(restaurantId);
+    const food = menu.find((item) => item.id === foodId);
+    
+    if (!food) return undefined;
 
-  const food = restaurant.menu.find((item) => item.id === foodId);
-  if (!food) {
-    return Promise.resolve(undefined);
+    return buildFoodDetail(food);
+  } catch (error) {
+    console.error(`Error obteniendo detalle de comida ${foodId}:`, error);
+    return undefined;
   }
-
-  return Promise.resolve(buildFoodDetail(food));
 }
 
 function buildFoodDetail(food: FoodItem): FoodDetail {
