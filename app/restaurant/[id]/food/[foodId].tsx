@@ -218,6 +218,7 @@ export default function FoodCustomizationScreen() {
               id: food.id,
               name: food.nombre,
               restaurantName: food.restaurantName,
+              restaurantId: id,
               image: food.imagen,
               quantity: 1,
               unitPrice: total,

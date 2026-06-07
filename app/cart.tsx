@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { useAuth, useUser } from '@clerk/expo';
 import Header from '@/components/ui/Header';
 import { Colors } from '@/constants/Colors';
 import { clearCart, removeFromCart, useCartItems } from '@/services/cart';
@@ -38,12 +39,16 @@ export default function CartScreen() {
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
+  const { getToken, userId } = useAuth();
+  const { user } = useUser();
+
   const handleConfirmCheckout = async () => {
     if (items.length === 0) return;
     setLoading(true);
     try {
       const firstItem = items[0];
       const restaurantName = firstItem.restaurantName || 'La Parrilla de la UdeA';
+      const restaurantId = firstItem.restaurantId;
       
       const orderItems = items.map((item) => ({
         id: item.id,
@@ -53,13 +58,25 @@ export default function CartScreen() {
         unitPrice: item.unitPrice,
         ingredients: item.ingredients || [],
         extras: item.extras || [],
+        sizeLabel: item.sizeLabel,
       }));
 
+      const mongoUserId = 
+        (user?.publicMetadata?.id_user as string) || 
+        (user?.unsafeMetadata?.id_user as string) || 
+        (user?.publicMetadata?.mongoId as string) || 
+        (user?.unsafeMetadata?.mongoId as string) || 
+        userId || 
+        '';
+
+      const token = await getToken();
       const createdOrder = await createOrder({
         restaurantName,
+        restaurantId,
         items: orderItems,
         total,
-      });
+        userId: mongoUserId,
+      }, token);
 
       if (createdOrder) {
         setCreatedOrderId(createdOrder.id);

@@ -4,6 +4,7 @@ export type CartItem = {
   id: string;
   name: string;
   restaurantName?: string;
+  restaurantId?: string;
   image?: string;
   quantity: number;
   unitPrice: number;

@@ -1,11 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/themed-text';
 import Header from '@/components/ui/Header';
 import OrderDetailItem from '@/components/ui/OrderDetailItem';
 import { Colors } from '@/constants/Colors';
+import { useAppPreferences } from '@/services/app-preferences';
+import { useAuth } from '@clerk/expo';
 import { getOrderRating } from '@/services/order-ratings';
 import { getOrderById, Order } from '@/services/orders';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,42 +16,78 @@ import { Ionicons } from '@expo/vector-icons';
 export default function OrderDetailScreen() {
   const { orderId } = useLocalSearchParams<{ orderId?: string }>();
   const router = useRouter();
+  const { preferences } = useAppPreferences();
+  const { getToken } = useAuth();
 
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
 
   const [order, setOrder] = useState<Order | null>(null);
   const [orderRating, setOrderRating] = useState<Awaited<ReturnType<typeof getOrderRating>>>(null);
+  
+  const statusRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    let pollInterval: NodeJS.Timeout | null = null;
 
     async function loadOrder() {
       if (!orderId) {
         return;
       }
 
-      const [foundOrder, rating] = await Promise.all([getOrderById(orderId), getOrderRating(orderId)]);
+      const token = await getToken();
+      const [foundOrder, rating] = await Promise.all([getOrderById(orderId, token), getOrderRating(orderId)]);
       if (!mounted) {
         return;
       }
 
       setOrder(foundOrder);
       setOrderRating(rating);
+      if (foundOrder) {
+        statusRef.current = foundOrder.status;
+      }
     }
 
     loadOrder();
 
+    if (orderId) {
+      pollInterval = setInterval(async () => {
+        try {
+          const token = await getToken();
+          const foundOrder = await getOrderById(orderId, token);
+          if (!mounted || !foundOrder) {
+            return;
+          }
+
+          if (statusRef.current !== null && statusRef.current !== foundOrder.status) {
+            if (preferences.vibrationEnabled) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+          }
+
+          setOrder(foundOrder);
+          statusRef.current = foundOrder.status;
+        } catch (error) {
+          console.warn('[OrderDetailScreen] Error polling order status:', error);
+        }
+      }, 8000);
+    }
+
     return () => {
       mounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
-  }, [orderId]);
+  }, [orderId, preferences.vibrationEnabled]);
 
   const titleMap: Record<string, string> = {
-    delivered: 'Orden entregada',
+    draft: 'Borrador de orden',
+    placed: 'Orden recibida',
     preparing: 'Orden en preparación',
-    waiting: 'Orden recibida',
     ready: 'Listo para recoger',
+    delivered: 'Orden entregada',
     cancelled: 'Orden cancelada',
   };
 
