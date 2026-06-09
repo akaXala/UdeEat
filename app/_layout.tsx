@@ -1,8 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { useColorScheme, Alert } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import 'react-native-reanimated';
 
 import { AppPreferencesProvider, useAppPreferences } from '@/services/app-preferences';
@@ -37,10 +38,13 @@ export default function RootLayout() {
 function AppThemeShell() {
   const systemColorScheme = useColorScheme();
   const { preferences } = useAppPreferences();
-  const { isLoaded, isSignedIn } = useAuth({ treatPendingAsSignedOut: false });
+  const { isLoaded, isSignedIn, getToken } = useAuth({ treatPendingAsSignedOut: false });
   const router = useRouter();
   const pathname = usePathname();
   const [promptedOrderId, setPromptedOrderId] = useState<string | null>(null);
+
+  const lastStatusesRef = useRef<Record<string, string>>({});
+  const isInitialLoadRef = useRef(true);
 
   const resolvedScheme =
     preferences.themeMode === 'system' ? systemColorScheme : preferences.themeMode;
@@ -49,22 +53,8 @@ function AppThemeShell() {
     let mounted = true;
 
     async function checkPendingOrderRating() {
-      if (!isLoaded || !isSignedIn) {
-        return;
-      }
-
-      const [orders, ratings] = await Promise.all([getOrders(), getOrderRatings()]);
-      if (!mounted) {
-        return;
-      }
-
-      const pending = findPendingDeliveredOrder(orders, ratings);
-      if (!pending || promptedOrderId === pending.id || pathname === '/rate-order') {
-        return;
-      }
-
-      setPromptedOrderId(pending.id);
-      router.push({ pathname: '/rate-order', params: { orderId: pending.id } });
+      // El módulo de calificación está deshabilitado temporalmente debido a la falta de endpoints en el backend
+      return;
     }
 
     checkPendingOrderRating();
@@ -73,6 +63,72 @@ function AppThemeShell() {
       mounted = false;
     };
   }, [isLoaded, isSignedIn, pathname, promptedOrderId, router]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) {
+      isInitialLoadRef.current = true;
+      lastStatusesRef.current = {};
+      return;
+    }
+
+    let mounted = true;
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const statusLabel: Record<string, string> = {
+      draft: 'Borrador',
+      placed: 'Recibida',
+      preparing: 'En preparación',
+      ready: 'Listo para recoger',
+      delivered: 'Entregada',
+      cancelled: 'Cancelada',
+    };
+
+    async function pollOrders() {
+      try {
+        const token = await getToken();
+        if (!mounted) return;
+        const orders = await getOrders(token);
+        if (!mounted) return;
+
+        const nextStatuses: Record<string, string> = {};
+        orders.forEach((order) => {
+          nextStatuses[order.id] = order.status;
+
+          if (!isInitialLoadRef.current) {
+            const prevStatus = lastStatusesRef.current[order.id];
+            if (prevStatus && prevStatus !== order.status) {
+              if (preferences.notificationsEnabled) {
+                Alert.alert(
+                  'Actualización de tu pedido',
+                  `El estado de tu pedido #${order.number} de "${order.restaurantName}" ha cambiado a: ${statusLabel[order.status] ?? order.status}.`
+                );
+              }
+              if (preferences.vibrationEnabled) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            }
+          }
+        });
+
+        lastStatusesRef.current = nextStatuses;
+        isInitialLoadRef.current = false;
+      } catch (error) {
+        console.warn('[RootLayout] Error polling orders:', error);
+      }
+    }
+
+    // Ejecución inicial rápida
+    pollOrders();
+
+    pollInterval = setInterval(pollOrders, 7000);
+
+    return () => {
+      mounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [isLoaded, isSignedIn, preferences.notificationsEnabled, preferences.vibrationEnabled]);
 
   return (
     <ThemeProvider value={resolvedScheme === 'dark' ? DarkTheme : DefaultTheme}>

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, useColorScheme, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/themed-text';
@@ -24,32 +24,35 @@ export default function OrderDetailScreen() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [orderRating, setOrderRating] = useState<Awaited<ReturnType<typeof getOrderRating>>>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   const statusRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    let pollInterval: NodeJS.Timeout | null = null;
-
-    async function loadOrder() {
-      if (!orderId) {
-        return;
-      }
-
+  const loadOrderData = async () => {
+    if (!orderId) return;
+    try {
       const token = await getToken();
       const [foundOrder, rating] = await Promise.all([getOrderById(orderId, token), getOrderRating(orderId)]);
-      if (!mounted) {
-        return;
-      }
-
       setOrder(foundOrder);
       setOrderRating(rating);
       if (foundOrder) {
         statusRef.current = foundOrder.status;
       }
+    } catch (error) {
+      console.warn('[OrderDetailScreen] Error loading order data:', error);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    async function run() {
+      if (!mounted) return;
+      await loadOrderData();
     }
 
-    loadOrder();
+    run();
 
     if (orderId) {
       pollInterval = setInterval(async () => {
@@ -71,7 +74,7 @@ export default function OrderDetailScreen() {
         } catch (error) {
           console.warn('[OrderDetailScreen] Error polling order status:', error);
         }
-      }, 8000);
+      }, 7000);
     }
 
     return () => {
@@ -114,7 +117,21 @@ export default function OrderDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
       <Header />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await loadOrderData();
+              setRefreshing(false);
+            }}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={18} color={colors.primary} />
           <ThemedText style={[styles.backText, { color: colors.primary }]}>Volver</ThemedText>
@@ -148,27 +165,7 @@ export default function OrderDetailScreen() {
           />
         ))}
 
-        {order.status === 'delivered' ? (
-          <View style={[styles.ratingCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-            <ThemedText style={[styles.sectionTitle, { color: colors.text, marginTop: 0 }]}>Calificación</ThemedText>
-
-            {orderRating ? (
-              <View style={styles.ratingSummary}>
-                <ThemedText style={{ color: colors.textSecondary }}>Restaurant: {'★'.repeat(restaurantStars)}</ThemedText>
-                <ThemedText style={{ color: colors.textSecondary }}>
-                  {Object.keys(orderRating.itemRatings).length > 0 ? 'Platillos calificados' : 'Sin platillos calificados'}
-                </ThemedText>
-                <Pressable style={[styles.rateAgainButton, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => router.push({ pathname: '/rate-order', params: { orderId: order.id } })}>
-                  <ThemedText style={{ color: colors.primary, fontWeight: '800' }}>Ver calificación</ThemedText>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable style={[styles.rateButton, { backgroundColor: colors.primary }]} onPress={() => router.push({ pathname: '/rate-order', params: { orderId: order.id } })}>
-                <ThemedText style={styles.rateButtonText}>Calificar pedido</ThemedText>
-              </Pressable>
-            )}
-          </View>
-        ) : null}
+        {/* El módulo de calificación está deshabilitado temporalmente debido a la falta de endpoints en el backend */}
 
         <View style={{ height: 8 }} />
 

@@ -82,13 +82,30 @@ function mapBackendOrderToFrontend(bo: any): Order {
   };
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}) {
+  const { timeout = 15000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 export async function getOrders(token?: string | null): Promise<Order[]> {
   try {
     const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const response = await fetch(`${API_BASE_URL}/orders`, { headers });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/orders`, { headers });
     if (response.ok) {
       const data = await response.json();
       const backendOrders = Array.isArray(data) ? data : [];
@@ -109,7 +126,7 @@ export async function getOrderById(id: string, token?: string | null): Promise<O
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const response = await fetch(`${API_BASE_URL}/orders/${id}`, { headers });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/orders/${id}`, { headers });
     if (response.ok) {
       const data = await response.json();
       return mapBackendOrderToFrontend(data);
@@ -198,7 +215,7 @@ export async function createOrder(
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}/orders`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/orders`, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestPayload),

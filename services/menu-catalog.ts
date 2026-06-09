@@ -45,9 +45,26 @@ function mapBackendDishToFrontend(backendDish: any): FoodItem {
   };
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}) {
+  const { timeout = 15000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 export async function getRestaurants(): Promise<Restaurant[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/restaurants/`);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/restaurants/`);
     if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
 
     const backendData = await response.json();
@@ -79,8 +96,8 @@ export async function getRestaurantById(id: string): Promise<Restaurant | undefi
   try {
     // Hacemos las dos peticiones al mismo tiempo
     const [restRes, menuRes] = await Promise.all([
-      fetch(`${API_BASE_URL}/restaurants/${id}`),
-      fetch(`${API_BASE_URL}/restaurants/menu/${id}`)
+      fetchWithTimeout(`${API_BASE_URL}/restaurants/${id}`),
+      fetchWithTimeout(`${API_BASE_URL}/restaurants/menu/${id}`)
     ]);
 
     if (!restRes.ok) {
@@ -118,7 +135,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | undefi
 
 export async function getMenuByRestaurant(restaurantId: string): Promise<FoodItem[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/restaurants/menu/${restaurantId}`);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/restaurants/menu/${restaurantId}`);
     if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
 
     const data = await response.json();
@@ -181,8 +198,8 @@ function mapBackendDishToFoodDetail(backendDish: any): FoodDetail {
 export async function getFoodDetail(restaurantId: string, foodId: string): Promise<FoodDetail | undefined> {
   try {
     const [restRes, menuRes] = await Promise.all([
-      fetch(`${API_BASE_URL}/restaurants/${restaurantId}`),
-      fetch(`${API_BASE_URL}/restaurants/menu/${restaurantId}`)
+      fetchWithTimeout(`${API_BASE_URL}/restaurants/${restaurantId}`),
+      fetchWithTimeout(`${API_BASE_URL}/restaurants/menu/${restaurantId}`)
     ]);
 
     if (!menuRes.ok) throw new Error(`HTTP Error on Menu: ${menuRes.status}`);
