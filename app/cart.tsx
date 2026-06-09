@@ -66,6 +66,7 @@ export default function CartScreen() {
         (user?.unsafeMetadata?.id_user as string) || 
         (user?.publicMetadata?.mongoId as string) || 
         (user?.unsafeMetadata?.mongoId as string) || 
+        user?.id || 
         userId || 
         '';
 
@@ -216,7 +217,7 @@ export default function CartScreen() {
             <View style={[styles.summaryCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <View style={styles.summaryItemRow}>
                 <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Restaurante:</Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]} numberOfLines={1}>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
                   {items[0]?.restaurantName || 'UdeEat'}
                 </Text>
               </View>
@@ -427,7 +428,9 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 14,
     fontWeight: '600',
-    maxWidth: '60%',
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 8,
   },
   summaryDivider: {
     height: 1,

@@ -97,9 +97,6 @@ export async function getRestaurantById(id: string): Promise<Restaurant | undefi
       backendMenu = Array.isArray(menuData) ? menuData : [];
     }
 
-    // REVISIÓN EN TERMINAL: Esto imprimirá en la consola de tu Expo Go lo que llegue
-    console.log(`🍔 Menú recibido para el restaurante ${id}:`, backendMenu);
-
     // Unimos los datos
     return {
       id: backendRest.id || backendRest._id,

@@ -92,7 +92,6 @@ export async function getOrders(token?: string | null): Promise<Order[]> {
     if (response.ok) {
       const data = await response.json();
       const backendOrders = Array.isArray(data) ? data : [];
-      console.log('📦 Órdenes recibidas del backend:', backendOrders);
       const mappedOrders = backendOrders.map(mapBackendOrderToFrontend);
       await persistOrders(mappedOrders);
       return mappedOrders;
@@ -101,7 +100,6 @@ export async function getOrders(token?: string | null): Promise<Order[]> {
     console.warn('[getOrders] Error connecting to backend, loading from local fallback:', error);
   }
   const localData = await loadFromStorage();
-  console.log('📦 Órdenes cargadas de almacenamiento local (fallback):', localData);
   return localData;
 }
 
@@ -114,7 +112,6 @@ export async function getOrderById(id: string, token?: string | null): Promise<O
     const response = await fetch(`${API_BASE_URL}/orders/${id}`, { headers });
     if (response.ok) {
       const data = await response.json();
-      console.log(`🍔 Detalle de orden ${id} recibido del backend:`, data);
       return mapBackendOrderToFrontend(data);
     }
   } catch (error) {
@@ -123,7 +120,6 @@ export async function getOrderById(id: string, token?: string | null): Promise<O
 
   const localOrders = await loadFromStorage();
   const foundLocal = localOrders.find(o => o.id === id) || null;
-  console.log(`🍔 Detalle de orden ${id} cargado del almacenamiento local (fallback):`, foundLocal);
   return foundLocal;
 }
 
@@ -145,8 +141,46 @@ export async function createOrder(
     paymentMethod: 'cash_on_pickup', // Pago contra entrega
   };
 
+  let userId = orderData.userId || '';
+  if (!userId && token) {
+    try {
+      const payloadB64 = token.split('.')[1];
+      if (payloadB64) {
+        const b64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+        // Pure JavaScript Base64 decoder fallback in case global.atob is missing in older environments
+        let decoded = '';
+        if (global.atob) {
+          decoded = global.atob(b64);
+        } else {
+          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+          let str = b64.replace(/=+$/, '');
+          let buffer = 0, accum = 0;
+          for (let i = 0; i < str.length; i++) {
+            const index = chars.indexOf(str[i]);
+            if (index >= 0) {
+              accum = (accum << 6) | index;
+              buffer += 6;
+              if (buffer >= 8) {
+                buffer -= 8;
+                decoded += String.fromCharCode((accum >> buffer) & 255);
+              }
+            }
+          }
+        }
+        if (decoded) {
+          const parsed = JSON.parse(decoded);
+          if (parsed && parsed.sub) {
+            userId = parsed.sub;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[createOrder] Failed to decode JWT token for userId:', e);
+    }
+  }
+
   const requestPayload = {
-    id_user: orderData.userId || '',
+    id_user: userId,
     id_restaurant: finalRestaurantId,
     items: orderData.items.map((item) => ({
       id_dish: item.id,
@@ -156,15 +190,12 @@ export async function createOrder(
     })),
   };
 
-  console.log('🌐 [createOrder] Enviando petición POST /orders con payload:', JSON.stringify(requestPayload, null, 2));
-
   try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
-      console.log('🔑 [createOrder] Token JWT de Clerk para usar en Postman:\n', token, '\n');
     }
 
     const response = await fetch(`${API_BASE_URL}/orders`, {
@@ -173,9 +204,7 @@ export async function createOrder(
       body: JSON.stringify(requestPayload),
     });
 
-    console.log(`🌐 [createOrder] Respuesta del servidor - Status: ${response.status} ${response.statusText}`);
     const responseText = await response.text();
-    console.log(`🌐 [createOrder] Respuesta del servidor - Body:`, responseText);
 
     if (response.ok) {
       let createdOrder: Order;
@@ -185,7 +214,6 @@ export async function createOrder(
       } catch {
         createdOrder = localOrder;
       }
-      console.log('🚀 Orden creada exitosamente en el backend:', createdOrder);
       const current = await loadFromStorage();
       await persistOrders([createdOrder, ...current]);
       return createdOrder;
@@ -196,7 +224,6 @@ export async function createOrder(
     console.error('[createOrder] Error de red o conexión al intentar crear la orden:', error);
   }
 
-  console.log('🚀 Usando fallback: Orden guardada localmente:', localOrder);
   const current = await loadFromStorage();
   const nextOrders = [localOrder, ...current];
   await persistOrders(nextOrders);
