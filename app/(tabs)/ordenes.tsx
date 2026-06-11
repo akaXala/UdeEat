@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Animated, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import Header from '@/components/ui/Header';
 import OrderListCard from '@/components/ui/OrderListCard';
 import { Colors } from '@/constants/Colors';
 import { useTabSlideAnimation } from '@/hooks/use-tab-slide-animation';
+import { useAuth } from '@clerk/expo';
 import { getOrderRatings } from '@/services/order-ratings';
 import { getOrders, Order } from '@/services/orders';
 import { useRouter } from 'expo-router';
@@ -15,25 +16,45 @@ export default function OrdenesScreen() {
   const colors = Colors[colorScheme];
   const slideStyle = useTabSlideAnimation();
   const router = useRouter();
+  const { getToken } = useAuth();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [ratings, setRatings] = useState<Record<string, unknown>>({});
   const [active, setActive] = useState<'inprogress' | 'past'>('inprogress');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadOrdersData = async () => {
+    try {
+      const token = await getToken();
+      const [data, orderRatings] = await Promise.all([getOrders(token), getOrderRatings()]);
+      setOrders(data);
+      setRatings(orderRatings);
+    } catch (error) {
+      console.error('[OrdenesScreen] Error loading orders data:', error);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([getOrders(), getOrderRatings()]).then(([data, orderRatings]) => {
-      if (mounted) {
-        setOrders(data);
-        setRatings(orderRatings);
-      }
-    });
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    async function run() {
+      if (!mounted) return;
+      await loadOrdersData();
+    }
+
+    run();
+    pollInterval = setInterval(run, 7000);
+
     return () => {
       mounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
   }, []);
 
-  const inProgressStatuses = ['waiting', 'preparing', 'ready'];
+  const inProgressStatuses = ['draft', 'placed', 'preparing', 'ready'];
   const inProgress = orders.filter((o) => inProgressStatuses.includes(o.status));
   const past = orders.filter((o) => !inProgressStatuses.includes(o.status));
 
@@ -47,6 +68,8 @@ export default function OrdenesScreen() {
   }
 
   const statusLabel: Record<string, string> = {
+    draft: 'Borrador',
+    placed: 'Recibida',
     waiting: 'En espera',
     preparing: 'Preparando',
     ready: 'Listo para recoger',
@@ -58,7 +81,21 @@ export default function OrdenesScreen() {
     <Animated.View style={[styles.container, { backgroundColor: colors.background }]}> 
       <Header />
       <Animated.View style={[styles.animatedContent, slideStyle]}> 
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await loadOrdersData();
+                setRefreshing(false);
+              }}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        >
           <ThemedText type="title" style={{ color: colors.text }}>Ordenes</ThemedText>
 
           <View style={styles.segmentRow}>
@@ -82,9 +119,7 @@ export default function OrdenesScreen() {
                   status={order.status}
                   subtitle={
                     order.status === 'delivered'
-                      ? ratings[order.id]
-                        ? 'Entregado • Calificada'
-                        : 'Entregado • Pendiente de calificar'
+                      ? 'Entregado'
                       : statusLabel[order.status] ?? order.status
                   }
                   date={formatDate(order.placedAt)}

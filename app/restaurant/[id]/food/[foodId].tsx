@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Image,
+    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -35,6 +36,7 @@ export default function FoodCustomizationScreen() {
   const [food, setFood] = useState<FoodDetail | null>(null);
   const [selectedSizeId, setSelectedSizeId] = useState<string>('');
   const [selectedOptional, setSelectedOptional] = useState<Record<string, string[]>>({});
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -216,19 +218,64 @@ export default function FoodCustomizationScreen() {
               id: food.id,
               name: food.nombre,
               restaurantName: food.restaurantName,
+              restaurantId: id,
               image: food.imagen,
               quantity: 1,
               unitPrice: total,
               sizeLabel: selectedSize.label,
               ingredients: [...requiredIngredients, ...selectedIngredients],
             });
-            router.back();
+
+            setShowSuccessModal(true);
           }}
         >
           <Ionicons name="cart-outline" size={18} color="#fff" />
           <Text style={styles.addButtonText}>Añadir producto • {formatCop(total)}</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showSuccessModal}
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.dialogBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.modalIconContainer, { backgroundColor: colors.primary }]}>
+              <Ionicons name="checkmark" size={36} color="#fff" />
+            </View>
+            
+            <Text style={[styles.dialogTitle, { color: colors.text }]}>¡Producto agregado!</Text>
+            <Text style={[styles.dialogMessage, { color: colors.textSecondary }]}>
+              El platillo ha sido añadido correctamente a tu carrito de compras.
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.dialogButtonPrimary, { backgroundColor: colors.primary }]}
+              activeOpacity={0.88}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+                router.push('/cart');
+              }}
+            >
+              <Text style={styles.dialogButtonTextPrimary}>Ir al carrito</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.dialogButtonSecondary, { borderColor: colors.border }]}
+              activeOpacity={0.7}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+            >
+              <Text style={[styles.dialogButtonTextSecondary, { color: colors.primary }]}>Seguir comprando</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -484,6 +531,71 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: '#fff',
     fontSize: 17,
+    fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dialogBox: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+  },
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  dialogTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  dialogMessage: {
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  dialogButtonPrimary: {
+    width: '100%',
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  dialogButtonTextPrimary: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  dialogButtonSecondary: {
+    width: '100%',
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogButtonTextSecondary: {
+    fontSize: 16,
     fontWeight: '800',
   },
 });

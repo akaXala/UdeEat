@@ -53,7 +53,7 @@ export async function getOrderRatings() {
   return loadFromStorage();
 }
 
-export async function getOrderRating(orderId: string) {
+export async function getOrderRating(orderId: string): Promise<OrderRating | null> {
   const ratings = await loadFromStorage();
   return ratings[orderId] ?? null;
 }

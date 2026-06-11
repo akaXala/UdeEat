@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     flexDirection: 'row',
     alignItems: 'center',
+    zIndex: 1,
   },
   ratingText: {
     color: '#fff',

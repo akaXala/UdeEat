@@ -18,9 +18,11 @@ export default function OrderListCard({ number, status, subtitle, date, onPress 
   const colors = Colors[scheme];
 
   const iconName =
-    status === 'delivered' ? 'checkmark-done' : status === 'preparing' ? 'restaurant' : status === 'ready' ? 'checkmark-circle' : 'time';
+    status === 'delivered' ? 'checkmark-done' : status === 'preparing' ? 'restaurant' : status === 'ready' ? 'checkmark-circle' : status === 'draft' ? 'create' : 'time';
 
   const statusLabel: Record<string, string> = {
+    draft: 'Borrador',
+    placed: 'Recibida',
     waiting: 'En espera',
     preparing: 'Preparando',
     ready: 'Listo para recoger',

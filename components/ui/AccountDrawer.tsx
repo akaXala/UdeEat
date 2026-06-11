@@ -126,7 +126,6 @@ export default function AccountDrawer({ visible, onClose }: AccountDrawerProps) 
           </View>
 
           <View style={styles.menuList}>
-            <MenuItem icon="person-circle-outline" label="Cuenta" color={colors.text} />
             <MenuItem
               icon="settings-outline"
               label="Configuración"
